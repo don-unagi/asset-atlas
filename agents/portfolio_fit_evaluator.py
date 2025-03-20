@@ -3,7 +3,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.output_parsers.openai_functions import JsonOutputFunctionsParser
 from typing import Dict, List
-from .state import AgentState
+from .state import AgentState, AgentState2
 
 def create_portfolio_fit_evaluator():
     """Create a portfolio fit evaluator using LangChain."""
@@ -102,7 +102,7 @@ Please evaluate how each new stock would fit into my existing portfolio.
     
     return chain
 
-def portfolio_fit_evaluator(state: AgentState) -> AgentState:
+def portfolio_fit_evaluator(state: AgentState2) -> AgentState2:
     """Evaluates how new high-ranked stocks fit into the existing portfolio context."""
     try:
         # Get the portfolio data

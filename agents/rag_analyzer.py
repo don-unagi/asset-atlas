@@ -11,7 +11,11 @@ import os
 embeddings = HuggingFaceEmbeddings(model_name="Snowflake/snowflake-arctic-embed-l")
 
 # Initialize Vector DB
-vector_db = Chroma(embedding_function=embeddings, persist_directory="./chroma_db")
+vector_db = Chroma(
+    embedding_function=embeddings, 
+    persist_directory="./chroma_db",
+    collection_name="Security_Analysis"  # Explicitly use the Security_Analysis collection
+)
 
 # Define RAG prompt template for technical analysis interpretation
 TECHNICAL_RAG_PROMPT = """
@@ -264,29 +268,74 @@ def rag_analyzer(state: AgentState) -> AgentState:
                     "investment_goals": investment_goals
                 })
                 
-                # Parse the batch results and update technical_analysis
-                # This is a simplified parsing - in production you might want more robust parsing
-                current_ticker = None
-                current_analysis = []
-                
-                for line in batch_analysis_result.split('\n'):
-                    if ':' in line and line.split(':')[0].strip() in technical_analysis:
-                        # If we have a previous ticker, save its analysis
+                # Try to parse as JSON first
+                try:
+                    import json
+                    import re
+                    
+                    # Try to find JSON-like content in the response using regex
+                    json_match = re.search(r'\{[\s\S]*\}', batch_analysis_result)
+                    if json_match:
+                        json_str = json_match.group(0)
+                        analysis_data = json.loads(json_str)
+                        
+                        # Update technical_analysis with the parsed JSON
+                        for ticker, analysis in analysis_data.items():
+                            if ticker in technical_analysis:
+                                technical_analysis[ticker]["rag_interpretation"] = analysis
+                    else:
+                        # Fallback to the original text parsing approach
+                        current_ticker = None
+                        current_analysis = []
+                        
+                        for line in batch_analysis_result.split('\n'):
+                            if ':' in line and line.split(':')[0].strip() in technical_analysis:
+                                # If we have a previous ticker, save its analysis
+                                if current_ticker is not None and current_ticker in technical_analysis:
+                                    technical_analysis[current_ticker]["rag_interpretation"] = '\n'.join(current_analysis).strip()
+                                    current_analysis = []
+                                
+                                # Start new ticker
+                                current_ticker = line.split(':')[0].strip()
+                                current_analysis.append(line.split(':', 1)[1].strip())
+                            elif current_ticker is not None:
+                                current_analysis.append(line)
+                        
+                        # Add the last ticker's analysis
                         if current_ticker is not None and current_ticker in technical_analysis:
                             technical_analysis[current_ticker]["rag_interpretation"] = '\n'.join(current_analysis).strip()
-                            current_analysis = []
-                        
-                        # Start new ticker
-                        current_ticker = line.split(':')[0].strip()
-                        current_analysis.append(line.split(':', 1)[1].strip())
-                    elif current_ticker is not None:
-                        current_analysis.append(line)
                 
-                # Add the last ticker's analysis
-                if current_ticker is not None and current_ticker in technical_analysis:
-                    technical_analysis[current_ticker]["rag_interpretation"] = '\n'.join(current_analysis).strip()
+                except (json.JSONDecodeError, Exception) as json_err:
+                    print(f"Error parsing JSON response: {str(json_err)}")
+                    # Log the raw response for debugging
+                    print(f"Raw response: {batch_analysis_result}")
+                    
+                    # Fallback to old approach if JSON parsing fails
+                    current_ticker = None
+                    current_analysis = []
+                    
+                    for line in batch_analysis_result.split('\n'):
+                        if ':' in line and line.split(':')[0].strip() in technical_analysis:
+                            # If we have a previous ticker, save its analysis
+                            if current_ticker is not None and current_ticker in technical_analysis:
+                                technical_analysis[current_ticker]["rag_interpretation"] = '\n'.join(current_analysis).strip()
+                                current_analysis = []
+                            
+                            # Start new ticker
+                            current_ticker = line.split(':')[0].strip()
+                            current_analysis.append(line.split(':', 1)[1].strip())
+                        elif current_ticker is not None:
+                            current_analysis.append(line)
+                    
+                    # Add the last ticker's analysis
+                    if current_ticker is not None and current_ticker in technical_analysis:
+                        technical_analysis[current_ticker]["rag_interpretation"] = '\n'.join(current_analysis).strip()
+                
             except Exception as e:
                 # Fallback to a simpler approach if batch processing fails
+                import traceback
+                print(f"Error in batch analysis: {str(e)}")
+                print(traceback.format_exc())
                 for ticker, data in technical_analysis.items():
                     if "error" not in data:
                         technical_analysis[ticker]["rag_interpretation"] = f"Analysis unavailable due to processing error: {str(e)}"

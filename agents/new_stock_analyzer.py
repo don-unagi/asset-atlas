@@ -2,7 +2,8 @@ import yfinance as yf
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, List
-from .state import AgentState
+from .state import AgentState, AgentState2
+from .rag_analyzer import batch_analysis_chain
 
 def calculate_rsi(prices, period=14):
     """Calculate Relative Strength Index."""
@@ -109,7 +110,7 @@ def get_technical_indicators(ticker_obj, hist):
         }
     }
 
-def new_stock_analyzer(state: AgentState) -> AgentState:
+def new_stock_analyzer(state: AgentState2) -> AgentState2:
     """Performs technical analysis only on the new high-ranked stocks from Zacks."""
     # Get the high-rank stocks from the Zacks analyzer
     high_rank_stocks = state.get("high_rank_stocks", [])
@@ -148,13 +149,90 @@ def new_stock_analyzer(state: AgentState) -> AgentState:
             print(f"Error analyzing {ticker}: {str(e)}")
             analysis_results[ticker] = {"error": str(e)}
     
+    # Add RAG interpretation for new stocks
+    risk_level = state.get("risk_level", 5)
+    investment_goals = state.get("investment_goals", "Growth")
+    
+    # Prepare batch analysis data for new stocks
+    stocks_data = ""
+    for ticker, data in analysis_results.items():
+        if "error" not in data:
+            stocks_data += f"Stock: {ticker}\n"
+            stocks_data += f"Current Price: ${data['current_price']:.2f}\n"
+            stocks_data += "Technical Indicators:\n"
+            for key, value in data['technical_indicators'].items():
+                stocks_data += f"  {key}: {value}\n"
+            stocks_data += "Fundamental Data:\n"
+            for key, value in data['fundamental_data'].items():
+                if value is not None:
+                    stocks_data += f"  {key}: {value}\n"
+            stocks_data += "\n---\n\n"
+    
+    # Only make the batch analysis call if we have stocks to analyze
+    if stocks_data:
+        try:
+            # Get batch analysis for all new stocks in one call
+            batch_analysis_result = batch_analysis_chain.invoke({
+                "stocks_data": stocks_data,
+                "risk_level": risk_level,
+                "investment_goals": investment_goals
+            })
+            
+            # Try to parse as JSON first
+            try:
+                import json
+                import re
+                
+                # Try to find JSON-like content in the response using regex
+                json_match = re.search(r'\{[\s\S]*\}', batch_analysis_result)
+                if json_match:
+                    json_str = json_match.group(0)
+                    analysis_data = json.loads(json_str)
+                    
+                    # Update analysis_results with the parsed JSON
+                    for ticker, analysis in analysis_data.items():
+                        if ticker in analysis_results:
+                            analysis_results[ticker]["rag_interpretation"] = analysis
+                else:
+                    # Fallback to text parsing approach
+                    current_ticker = None
+                    current_analysis = []
+                    
+                    for line in batch_analysis_result.split('\n'):
+                        if ':' in line and line.split(':')[0].strip() in analysis_results:
+                            # If we have a previous ticker, save its analysis
+                            if current_ticker is not None and current_ticker in analysis_results:
+                                analysis_results[current_ticker]["rag_interpretation"] = '\n'.join(current_analysis).strip()
+                                current_analysis = []
+                            
+                            # Start new ticker
+                            current_ticker = line.split(':')[0].strip()
+                            current_analysis.append(line.split(':', 1)[1].strip())
+                        elif current_ticker is not None:
+                            current_analysis.append(line)
+                    
+                    # Add the last ticker's analysis
+                    if current_ticker is not None and current_ticker in analysis_results:
+                        analysis_results[current_ticker]["rag_interpretation"] = '\n'.join(current_analysis).strip()
+            
+            except (json.JSONDecodeError, Exception) as json_err:
+                print(f"Error parsing JSON response for new stocks: {str(json_err)}")
+                print(f"Raw response: {batch_analysis_result}")
+                
+        except Exception as e:
+            # Log any errors but continue execution
+            import traceback
+            print(f"Error in batch analysis for new stocks: {str(e)}")
+            print(traceback.format_exc())
+    
     # Update state with new stock analysis
     state["new_stock_analysis"] = analysis_results
     
     # Add message to communication
+    num_with_rag = sum(1 for ticker in analysis_results if "rag_interpretation" in analysis_results[ticker])
     state["messages"] = state.get("messages", []) + [{
         "role": "ai",
-        "content": f"[NewStockAnalyzer] I've calculated technical indicators and gathered fundamental data for {len(analysis_results)} new high-ranked stocks."
+        "content": f"[NewStockAnalyzer] I've calculated technical indicators, gathered fundamental data, and added RAG-based interpretations for {num_with_rag} of {len(analysis_results)} new high-ranked stocks."
     }]
     
     return state 

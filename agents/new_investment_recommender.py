@@ -3,7 +3,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.output_parsers.openai_functions import JsonOutputFunctionsParser
 from typing import Dict, List
-from .state import AgentState
+from .state import AgentState, AgentState2
 
 def create_new_investment_recommender():
     """Create a new investment recommender using LangChain."""
@@ -63,6 +63,7 @@ Consider the following when making recommendations:
 3. Prioritize stocks that have been evaluated as good fits for the portfolio
 4. Consider the user's risk tolerance and investment goals
 5. Focus on stocks that complement the existing portfolio and improve diversification
+6. Pay close attention to the RAG interpretations
 
 Provide clear, actionable recommendations with detailed reasoning.
          
@@ -92,18 +93,19 @@ Portfolio Fit Evaluation:
 
 Please provide specific recommendations for new investments that would complement my existing portfolio.
 Only recommend stocks that have been properly analyzed and evaluated for portfolio fit.
+Pay special attention to the RAG interpretations in the new stock analysis.
 """)
     ])
     
     # Create the LLM
-    llm = ChatOpenAI(model="gpt-4-turbo", temperature=0.2, api_key=os.getenv("OPENAI_API_KEY"))
+    llm = ChatOpenAI(model="gpt-4-turbo", temperature=0.5, api_key=os.getenv("OPENAI_API_KEY"))
     
     # Create the structured output chain
     chain = prompt | llm.bind_functions(functions=[function_def], function_call={"name": "generate_new_investment_recommendations"}) | JsonOutputFunctionsParser()
     
     return chain
 
-def new_investment_recommender(state: AgentState) -> AgentState:
+def new_investment_recommender(state: AgentState2) -> AgentState2:
     """Recommends new investments based on analyzed high-rank stocks and portfolio fit evaluation."""
     try:
         # Get the portfolio data

@@ -2,13 +2,13 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from zacks import find_rank_1_stocks
-from .state import AgentState
+from .state import AgentState, AgentState2
 
-def zacks_analyzer(state: AgentState) -> AgentState:
+def zacks_analyzer(state: AgentState2) -> AgentState2:
     """Fetches high-rank stocks from Zacks for potential new investments."""
     try:
         # Get 5 rank 1 stocks from Zacks
-        high_rank_stocks = find_rank_1_stocks(n=5)
+        high_rank_stocks = find_rank_1_stocks(n=15)
 
         #TODO if really aggressive use sp400
         

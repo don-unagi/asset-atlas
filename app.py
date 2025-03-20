@@ -19,8 +19,8 @@ load_dotenv()
 
 # Configure page
 st.set_page_config(
-    page_title="Capital Compass",
-    page_icon="💰",
+    page_title="Cardinal ai",
+    page_icon="🧭",
     layout="wide"
 )
 
@@ -35,14 +35,15 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 # vector_db = Chroma(embedding_function=embeddings, persist_directory="./chroma_db")
 
 # Streamlit UI components
-st.title("Capital Compass - AI Financial Advisor")
-st.subheader("Portfolio Management and Recommendation System")
+st.image("assets/sunrise.svg")
+# st.title("Asset Atlas - AI Financial Advisor")
+# st.subheader("Research, Summary, and Analysis")
 
-with st.expander("About this app", expanded=False):
-    st.write("""
-    This app provides personalized financial advice based on your portfolio, risk tolerance, and investment goals.
-    It analyzes technical indicators, relevant news, and market trends to offer tailored recommendations.
-    """)
+# with st.expander("About this app", expanded=False):
+#     st.write("""
+#     This app provides personalized financial advice based on your portfolio, risk tolerance, and investment goals.
+#     It analyzes technical indicators, relevant news, and market trends to offer tailored recommendations.
+#     """)
 
 # Sidebar for user inputs
 with st.sidebar:
@@ -57,8 +58,8 @@ with st.sidebar:
     
     # Investment goals
     investment_goals = st.text_area("Investment Goals", "Retirement in 20 years, building wealth, passive income")
-    
-    st.divider()
+
+    st.markdown("")
     
     # Portfolio input
     st.header("Your Portfolio")
@@ -82,8 +83,8 @@ with st.sidebar:
         use_container_width=True
     )
     
-    st.divider()
-    generate_button = st.button("Generate Recommendations", type="primary", use_container_width=True)
+    generate_button = st.button("Generate Recommendations", type="secondary", use_container_width=True)
+    
 
 # Initialize session state to store our analysis results
 if 'portfolio_analyzed' not in st.session_state:
@@ -138,6 +139,111 @@ if generate_button or st.session_state.portfolio_analyzed:
                     }
                 except Exception as e:
                     st.error(f"Error processing {ticker}: {e}")
+
+                if len(portfolio_data) == len(portfolio_df):
+                    st.subheader("Current valuation")
+                    
+                    # Create a dataframe for portfolio valuation
+                    valuation_data = []
+                    total_value = 0
+                    total_cost = 0
+                    
+                    for ticker, data in portfolio_data.items():
+                        current_value = data['value']
+                        purchase_value = data['purchase_price'] * data['shares']
+                        total_value += current_value
+                        total_cost += purchase_value
+                        
+                        valuation_data.append({
+                            'Ticker': ticker,
+                            'Shares': data['shares'],
+                            'Purchase Price': f"${data['purchase_price']:.2f}",
+                            'Current Price': f"${data['current_price']:.2f}",
+                            'Cost Basis': f"${purchase_value:.2f}",
+                            'Current Value': f"${current_value:.2f}",
+                            'Gain/Loss ($)': f"${data['gain_loss']:.2f}",
+                            'Gain/Loss (%)': f"{data['gain_loss_pct']:.2f}%"
+                        })
+                    
+                    # Calculate total gain/loss
+                    total_gain_loss = total_value - total_cost
+                    total_gain_loss_pct = (total_gain_loss / total_cost * 100) if total_cost > 0 else 0
+                    
+                    # Display the valuation table
+                    valuation_df = pd.DataFrame(valuation_data)
+                    st.dataframe(valuation_df, use_container_width=True)
+                
+
+                # Display portfolio valuations and allocations with gain/loss
+                #if portfolio_data:   
+                    
+                    # Create a better layout with metrics on the left and pie chart on the right
+                    st.subheader("Performance & allocation summary")
+                    
+                    # Create two columns for the layout with adjusted ratio
+                    left_col, right_col = st.columns([1, 1])
+                    
+                    # Left column: stacked metrics
+                    with left_col:
+                        cont_col, gap_col = st.columns([2, 1])
+
+                        with cont_col:
+                            # Add a bit of vertical space for alignment
+                            st.write("")
+                            
+                            # Total Portfolio Value metric
+                            st.metric("Total Portfolio Value", f"${total_value:.2f}", f"${total_gain_loss:.2f}", border=True)
+                            
+                            # Add some space between metrics
+                            st.write("")
+                            
+                            # Total Cost Basis metric
+                            st.metric("Total Cost Basis", f"${total_cost:.2f}", border=True)
+                            
+                            # Add some space between metrics
+                            st.write("")
+                            
+                            # Total Return metric
+                            st.metric("Total Return", f"{total_gain_loss_pct:.2f}%", border=True)
+                        with gap_col:
+                            st.markdown("")
+                    
+                    # Right column: pie chart
+                    with right_col:
+                        # Prepare data for pie chart
+                        st.markdown("")
+                        allocation_data = {}
+                        for ticker, data in portfolio_data.items():
+                            allocation_data[ticker] = data['value']
+                        
+                        # Create a figure for the pie chart
+                        fig, ax = plt.subplots(figsize=(4, 3.2))
+                        
+                        # Create the pie chart
+                        wedges, texts, autotexts = ax.pie(
+                            allocation_data.values(), 
+                            labels=allocation_data.keys(),
+                            autopct='%1.1f%%',
+                            startangle=90,
+                            wedgeprops={'edgecolor': 'white'},
+                            textprops={'fontsize': 8}
+                        )
+                        
+                        # Equal aspect ratio ensures that pie is drawn as a circle
+                        ax.axis('equal')
+                        
+                        # Manually set font sizes
+                        plt.setp(autotexts, size=8, weight="bold")
+                        plt.setp(texts, size=8)
+                        
+                        # Add a title
+                        plt.title('Portfolio Allocation by Value', fontsize=10)
+                        
+                        # Use tight layout
+                        plt.tight_layout()
+                        
+                        # Display the pie chart
+                        st.pyplot(fig)
             
             # Initialize state
             initial_state = AgentState(
@@ -177,9 +283,144 @@ if generate_button or st.session_state.portfolio_analyzed:
                 elif "rag_context" in state and state["rag_context"]:
                     progress_placeholder.progress(75, "RAG Analysis")
                     status_placeholder.info("Value investing analysis complete. Generating recommendations...")
+
+
                 elif "news_analysis" in state and state["news_analysis"]:
                     progress_placeholder.progress(60, "News Analysis")
                     status_placeholder.info("News analysis complete. Applying value investing principles...")
+
+                    ### SHOW NEWS
+                    # Display relevant news with links if available
+                    #if "news_analysis" in final_state and final_state["news_analysis"]:
+                    if state["news_analysis"]:
+                        st.markdown("")
+                        st.subheader("Market news for your portfolio")
+                        
+                        # Display top two news articles outside the expander
+                        top_articles_shown = 0
+                        for i, news_item in enumerate(state["news_analysis"]):
+                            if isinstance(news_item, dict) and top_articles_shown < 2:
+                                title = news_item.get("title", "")
+                                summary = news_item.get("summary", "")
+                                url = news_item.get("url", "")
+                                urlToImage = news_item.get("urlToImage", "")
+                                sentiment = news_item.get("sentiment", "neutral")
+                                if not summary or summary == "No description available.":
+                                    continue
+                                
+                                # Create two columns for image and content
+                                img_col, content_col = st.columns([1, 6])
+                                
+                                # Display image in left column if available
+                                if urlToImage:
+                                    with img_col:
+                                        st.markdown("""
+                                        <style>
+                                        .news-image-container {
+                                            width: 120px;
+                                            height: 120px;
+                                            overflow: hidden;
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: center;
+                                            border-radius: 8px;
+                                            margin: 8px;
+                                            margin-top: -16px;
+                                        }
+                                        .news-image-container img {
+                                            height: 100%;
+                                            width: auto;
+                                            object-fit: cover;
+                                        }
+                                        </style>
+                                        """, unsafe_allow_html=True)
+                                        
+                                        st.markdown(f"""
+                                        <div class="news-image-container">
+                                            <img src="{urlToImage}" alt="News image">
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                
+                                # Display title, summary, and link in right column
+                                with content_col:
+                                    # Style based on sentiment
+                                    if sentiment.lower() == "positive":
+                                        st.success(f"**{title}**")
+                                    elif sentiment.lower() == "negative":
+                                        st.error(f"**{title}**")
+                                    else:
+                                        st.info(f"**{title}**")
+                                    
+                                    # Truncate summary to one line (max 120 characters)
+                                    truncated_summary = summary[:120] + "..." if len(summary) > 120 else summary
+                                    st.write(truncated_summary)
+                                    if url:
+                                        st.write(f"[Read more]({url})")
+                                
+                                top_articles_shown += 1
+                        
+                        # Display remaining news articles in the expander
+                        if len(state["news_analysis"]) > 2:
+                            with st.expander("View More Market News"):
+                                for i, news_item in enumerate(state["news_analysis"]):
+                                    if isinstance(news_item, dict) and i >= 2:
+                                        title = news_item.get("title", "")
+                                        summary = news_item.get("summary", "")
+                                        url = news_item.get("url", "")
+                                        urlToImage = news_item.get("urlToImage", "")
+                                        sentiment = news_item.get("sentiment", "neutral")
+                                        if not summary or summary == "No description available.":
+                                            continue
+                                        
+                                        # Create two columns for image and content
+                                        img_col, content_col = st.columns([1, 6])
+                                        
+                                        # Display image in left column if available
+                                        if urlToImage:
+                                            with img_col:
+                                                st.markdown("""
+                                                <style>
+                                                .news-image-container {
+                                                    width: 120px;
+                                                    height: 120px;
+                                                    overflow: hidden;
+                                                    display: flex;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    border-radius: 8px;
+                                                    margin: 8px;
+                                                    margin-top: -16px;
+                                                }
+                                                .news-image-container img {
+                                                    height: 100%;
+                                                    width: auto;
+                                                    object-fit: cover;
+                                                }
+                                                </style>
+                                                """, unsafe_allow_html=True)
+                                                
+                                                st.markdown(f"""
+                                                <div class="news-image-container">
+                                                    <img src="{urlToImage}" alt="News image">
+                                                </div>
+                                                """, unsafe_allow_html=True)
+                                        
+                                        # Display title, summary, and link in right column
+                                        with content_col:
+                                            # Style based on sentiment
+                                            if sentiment.lower() == "positive":
+                                                st.success(f"**{title}**")
+                                            elif sentiment.lower() == "negative":
+                                                st.error(f"**{title}**")
+                                            else:
+                                                st.info(f"**{title}**")
+                                            
+                                            # Truncate summary to one line (max 120 characters)
+                                            truncated_summary = summary[:120] + "..." if len(summary) > 120 else summary
+                                            st.write(truncated_summary)
+                                            if url:
+                                                st.write(f"[Read more]({url})")
+
                 elif "portfolio_analysis" in state and state["portfolio_analysis"]:
                     progress_placeholder.progress(40, "Portfolio Analysis")
                     status_placeholder.info("Portfolio analysis complete. Gathering financial news...")
@@ -202,6 +443,7 @@ if generate_button or st.session_state.portfolio_analyzed:
             st.session_state.final_state = final_state
             st.session_state.portfolio_analyzed = True
             st.session_state.portfolio_data = portfolio_data
+
     else:
         # Use the stored final state
         final_state = st.session_state.final_state
@@ -209,95 +451,304 @@ if generate_button or st.session_state.portfolio_analyzed:
     
     # Display the results
     # Display the executive summary for the end user
-    st.subheader("Your Investment Portfolio Analysis")
+    #st.subheader("Your Investment Portfolio Analysis")
+    # if portfolio_data:
+    #     st.subheader("Current valuation")
+        
+    #     # Create a dataframe for portfolio valuation
+    #     valuation_data = []
+    #     total_value = 0
+    #     total_cost = 0
+        
+    #     for ticker, data in portfolio_data.items():
+    #         current_value = data['value']
+    #         purchase_value = data['purchase_price'] * data['shares']
+    #         total_value += current_value
+    #         total_cost += purchase_value
+            
+    #         valuation_data.append({
+    #             'Ticker': ticker,
+    #             'Shares': data['shares'],
+    #             'Purchase Price': f"${data['purchase_price']:.2f}",
+    #             'Current Price': f"${data['current_price']:.2f}",
+    #             'Cost Basis': f"${purchase_value:.2f}",
+    #             'Current Value': f"${current_value:.2f}",
+    #             'Gain/Loss ($)': f"${data['gain_loss']:.2f}",
+    #             'Gain/Loss (%)': f"{data['gain_loss_pct']:.2f}%"
+    #         })
+        
+    #     # Calculate total gain/loss
+    #     total_gain_loss = total_value - total_cost
+    #     total_gain_loss_pct = (total_gain_loss / total_cost * 100) if total_cost > 0 else 0
+        
+    #     # Display the valuation table
+    #     valuation_df = pd.DataFrame(valuation_data)
+    #     st.dataframe(valuation_df, use_container_width=True)
     
+
+    # # Display portfolio valuations and allocations with gain/loss
+    # #if portfolio_data:   
+         
+    #     # Create a better layout with metrics on the left and pie chart on the right
+    #     st.subheader("Performance & allocation summary")
+        
+    #     # Create two columns for the layout with adjusted ratio
+    #     left_col, right_col = st.columns([1, 1])
+        
+    #     # Left column: stacked metrics
+    #     with left_col:
+    #         cont_col, gap_col = st.columns([2, 1])
+
+    #         with cont_col:
+    #             # Add a bit of vertical space for alignment
+    #             st.write("")
+                
+    #             # Total Portfolio Value metric
+    #             st.metric("Total Portfolio Value", f"${total_value:.2f}", f"${total_gain_loss:.2f}", border=True)
+                
+    #             # Add some space between metrics
+    #             st.write("")
+                
+    #             # Total Cost Basis metric
+    #             st.metric("Total Cost Basis", f"${total_cost:.2f}", border=True)
+                
+    #             # Add some space between metrics
+    #             st.write("")
+                
+    #             # Total Return metric
+    #             st.metric("Total Return", f"{total_gain_loss_pct:.2f}%", border=True)
+    #         with gap_col:
+    #             st.markdown("")
+        
+    #     # Right column: pie chart
+    #     with right_col:
+    #         # Prepare data for pie chart
+    #         st.markdown("")
+    #         allocation_data = {}
+    #         for ticker, data in portfolio_data.items():
+    #             allocation_data[ticker] = data['value']
+            
+    #         # Create a figure for the pie chart
+    #         fig, ax = plt.subplots(figsize=(4, 3.2))
+            
+    #         # Create the pie chart
+    #         wedges, texts, autotexts = ax.pie(
+    #             allocation_data.values(), 
+    #             labels=allocation_data.keys(),
+    #             autopct='%1.1f%%',
+    #             startangle=90,
+    #             wedgeprops={'edgecolor': 'white'},
+    #             textprops={'fontsize': 8}
+    #         )
+            
+    #         # Equal aspect ratio ensures that pie is drawn as a circle
+    #         ax.axis('equal')
+            
+    #         # Manually set font sizes
+    #         plt.setp(autotexts, size=8, weight="bold")
+    #         plt.setp(texts, size=8)
+            
+    #         # Add a title
+    #         plt.title('Portfolio Allocation by Value', fontsize=10)
+            
+    #         # Use tight layout
+    #         plt.tight_layout()
+            
+    #         # Display the pie chart
+    #         st.pyplot(fig)
+
     # Check if we have a final report
     if "final_report" in final_state and final_state["final_report"]:
+        st.subheader("Portfolio analysis")
         # Format and display the final report in a clean, professional way
         report = final_state["final_report"]
-        st.markdown(report)
+        #st.markdown(report)
+        # st.markdown(
+        #     f"""
+        #     <div style="background-color: #060F35;">
+        #         {report}
+        #     </div>
+        #     """, 
+        #     unsafe_allow_html=True
+        # )
+        st.info(report)
     else:
         st.error("Unable to generate portfolio analysis. Please try again.")
+
+    # Display relevant news with links if available
+    #if "news_analysis" in final_state and final_state["news_analysis"]:
+    # if final_state["news_analysis"]:
+    #     st.markdown("")
+    #     st.subheader("Market news for your portfolio")
         
-    # Display portfolio valuations and allocations with gain/loss
-    if portfolio_data:
-        st.subheader("Portfolio Valuation & Allocation")
+    #     # Display top two news articles outside the expander
+    #     top_articles_shown = 0
+    #     for i, news_item in enumerate(final_state["news_analysis"]):
+    #         if isinstance(news_item, dict) and top_articles_shown < 2:
+    #             title = news_item.get("title", "")
+    #             summary = news_item.get("summary", "")
+    #             url = news_item.get("url", "")
+    #             urlToImage = news_item.get("urlToImage", "")
+    #             sentiment = news_item.get("sentiment", "neutral")
+    #             if not summary or summary == "No description available.":
+    #                 continue
+                
+    #             # Create two columns for image and content
+    #             img_col, content_col = st.columns([1, 6])
+                
+    #             # Display image in left column if available
+    #             if urlToImage:
+    #                 with img_col:
+    #                     st.markdown("""
+    #                     <style>
+    #                     .news-image-container {
+    #                         width: 120px;
+    #                         height: 120px;
+    #                         overflow: hidden;
+    #                         display: flex;
+    #                         align-items: center;
+    #                         justify-content: center;
+    #                         border-radius: 8px;
+    #                         margin: 8px;
+    #                         margin-top: -16px;
+    #                     }
+    #                     .news-image-container img {
+    #                         height: 100%;
+    #                         width: auto;
+    #                         object-fit: cover;
+    #                     }
+    #                     </style>
+    #                     """, unsafe_allow_html=True)
+                        
+    #                     st.markdown(f"""
+    #                     <div class="news-image-container">
+    #                         <img src="{urlToImage}" alt="News image">
+    #                     </div>
+    #                     """, unsafe_allow_html=True)
+                
+    #             # Display title, summary, and link in right column
+    #             with content_col:
+    #                 # Style based on sentiment
+    #                 if sentiment.lower() == "positive":
+    #                     st.success(f"**{title}**")
+    #                 elif sentiment.lower() == "negative":
+    #                     st.error(f"**{title}**")
+    #                 else:
+    #                     st.info(f"**{title}**")
+                    
+    #                 # Truncate summary to one line (max 120 characters)
+    #                 truncated_summary = summary[:120] + "..." if len(summary) > 120 else summary
+    #                 st.write(truncated_summary)
+    #                 if url:
+    #                     st.write(f"[Read more]({url})")
+                
+    #             top_articles_shown += 1
         
-        # Create a dataframe for portfolio valuation
-        valuation_data = []
-        total_value = 0
-        total_cost = 0
-        
-        for ticker, data in portfolio_data.items():
-            current_value = data['value']
-            purchase_value = data['purchase_price'] * data['shares']
-            total_value += current_value
-            total_cost += purchase_value
+    #     # Display remaining news articles in the expander
+    #     if len(final_state["news_analysis"]) > 2:
+    #         with st.expander("View More Market News"):
+    #             for i, news_item in enumerate(final_state["news_analysis"]):
+    #                 if isinstance(news_item, dict) and i >= 2:
+    #                     title = news_item.get("title", "")
+    #                     summary = news_item.get("summary", "")
+    #                     url = news_item.get("url", "")
+    #                     urlToImage = news_item.get("urlToImage", "")
+    #                     sentiment = news_item.get("sentiment", "neutral")
+    #                     if not summary or summary == "No description available.":
+    #                         continue
+                        
+    #                     # Create two columns for image and content
+    #                     img_col, content_col = st.columns([1, 6])
+                        
+    #                     # Display image in left column if available
+    #                     if urlToImage:
+    #                         with img_col:
+    #                             st.markdown("""
+    #                             <style>
+    #                             .news-image-container {
+    #                                 width: 120px;
+    #                                 height: 120px;
+    #                                 overflow: hidden;
+    #                                 display: flex;
+    #                                 align-items: center;
+    #                                 justify-content: center;
+    #                                 border-radius: 8px;
+    #                                 margin: 8px;
+    #                                 margin-top: -16px;
+    #                             }
+    #                             .news-image-container img {
+    #                                 height: 100%;
+    #                                 width: auto;
+    #                                 object-fit: cover;
+    #                             }
+    #                             </style>
+    #                             """, unsafe_allow_html=True)
+                                
+    #                             st.markdown(f"""
+    #                             <div class="news-image-container">
+    #                                 <img src="{urlToImage}" alt="News image">
+    #                             </div>
+    #                             """, unsafe_allow_html=True)
+                        
+    #                     # Display title, summary, and link in right column
+    #                     with content_col:
+    #                         # Style based on sentiment
+    #                         if sentiment.lower() == "positive":
+    #                             st.success(f"**{title}**")
+    #                         elif sentiment.lower() == "negative":
+    #                             st.error(f"**{title}**")
+    #                         else:
+    #                             st.info(f"**{title}**")
+                            
+    #                         # Truncate summary to one line (max 120 characters)
+    #                         truncated_summary = summary[:120] + "..." if len(summary) > 120 else summary
+    #                         st.write(truncated_summary)
+    #                         if url:
+    #                             st.write(f"[Read more]({url})")
+                        
+    
+    # Display portfolio strengths and weaknesses
+    col1, col2 = st.columns(2)
+    print("yoyoyo")
+    print(final_state.get("technical_analysis"));
+    print(final_state.get("rag_context"));
+    print(final_state.get("fundamental_analysis"));
+    
+    
+    
+    with col1:
+        st.subheader("Portfolio strengths")
+        strengths = final_state.get("portfolio_strengths", [])
+        if strengths:
+            for strength in strengths:
+                st.write(f"✅ {strength}")
+        else:
+            st.write("No specific strengths identified.")
             
-            valuation_data.append({
-                'Ticker': ticker,
-                'Shares': data['shares'],
-                'Purchase Price': f"${data['purchase_price']:.2f}",
-                'Current Price': f"${data['current_price']:.2f}",
-                'Cost Basis': f"${purchase_value:.2f}",
-                'Current Value': f"${current_value:.2f}",
-                'Gain/Loss ($)': f"${data['gain_loss']:.2f}",
-                'Gain/Loss (%)': f"{data['gain_loss_pct']:.2f}%"
-            })
+    with col2:
+        st.subheader("Areas for improvement")
+        weaknesses = final_state.get("portfolio_weaknesses", [])
+        if weaknesses:
+            for weakness in weaknesses:
+                st.write(f"⚠️ {weakness}")
+        else:
+            st.write("No specific areas for improvement identified.")
+    
+    # Display allocation advice and risk assessment
+    st.subheader("Investment strategy")
+    
+    allocation_advice = final_state.get("allocation_advice", "")
+    risk_assessment = final_state.get("risk_assessment", "")
+    
+    if allocation_advice:
+        st.write(f"**Allocation advice:** {allocation_advice}")
         
-        # Calculate total gain/loss
-        total_gain_loss = total_value - total_cost
-        total_gain_loss_pct = (total_gain_loss / total_cost * 100) if total_cost > 0 else 0
-        
-        # Display the valuation table
-        valuation_df = pd.DataFrame(valuation_data)
-        st.dataframe(valuation_df, use_container_width=True)
-        
-        # Display total portfolio value and gain/loss
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Portfolio Value", f"${total_value:.2f}", f"${total_gain_loss:.2f}")
-        with col2:
-            st.metric("Total Cost Basis", f"${total_cost:.2f}")
-        with col3:
-            st.metric("Total Return", f"{total_gain_loss_pct:.2f}%")
-        
-        # Create and display allocation pie chart
-        st.subheader("Portfolio Allocation")
-        
-        # Prepare data for pie chart
-        allocation_data = {}
-        for ticker, data in portfolio_data.items():
-            allocation_data[ticker] = data['value']
-        
-        # Create a figure for the pie chart
-        fig, ax = plt.subplots(figsize=(10, 6))
-        
-        # Create the pie chart
-        wedges, texts, autotexts = ax.pie(
-            allocation_data.values(), 
-            labels=allocation_data.keys(),
-            autopct='%1.1f%%',
-            startangle=90,
-            wedgeprops={'edgecolor': 'white'}
-        )
-        
-        # Equal aspect ratio ensures that pie is drawn as a circle
-        ax.axis('equal')
-        
-        # Set font size for the labels and percentages
-        plt.setp(autotexts, size=10, weight="bold")
-        plt.setp(texts, size=12)
-        
-        # Add a title
-        plt.title('Portfolio Allocation by Value', fontsize=16)
-        
-        # Display the pie chart
-        st.pyplot(fig)
-        
+    if risk_assessment:
+        st.write(f"**Risk assessment:** {risk_assessment}")
+
     # Display key recommendations in an easy-to-read format
     if "recommendations" in final_state and final_state["recommendations"]:
-        st.subheader("Key Recommendations")
+        st.subheader("Key recommendations")
         
         # Create columns for recommendation cards
         cols = st.columns(min(3, len(final_state["recommendations"])))
@@ -328,7 +779,7 @@ if generate_button or st.session_state.portfolio_analyzed:
         
         # If there are more than 3 recommendations, add a expander for the rest
         if len(sorted_recommendations) > 3:
-            with st.expander("View All Recommendations"):
+            with st.expander("View all recommendations"):
                 for rec in sorted_recommendations[3:]:
                     action = rec.get("action", "")
                     ticker = rec.get("ticker", "")
@@ -345,70 +796,13 @@ if generate_button or st.session_state.portfolio_analyzed:
                     # Display reasoning with markdown formatting preserved
                     st.markdown(reasoning)
                     st.divider()
-    
-    # Display relevant news with links if available
-    if "news_analysis" in final_state and final_state["news_analysis"]:
-        st.subheader("Relevant Market News")
-        
-        with st.expander("View Market News"):
-            for news_item in final_state["news_analysis"]:
-                if isinstance(news_item, dict):
-                    title = news_item.get("title", "")
-                    summary = news_item.get("summary", "")
-                    url = news_item.get("url", "")
-                    sentiment = news_item.get("sentiment", "neutral")
-                    
-                    # Style based on sentiment
-                    if sentiment.lower() == "positive":
-                        st.success(f"**{title}**")
-                    elif sentiment.lower() == "negative":
-                        st.error(f"**{title}**")
-                    else:
-                        st.info(f"**{title}**")
-                        
-                    st.write(summary)
-                    if url:
-                        st.write(f"[Read more]({url})")
-                    st.divider()
-    
-    # Display portfolio strengths and weaknesses
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("Portfolio Strengths")
-        strengths = final_state.get("portfolio_strengths", [])
-        if strengths:
-            for strength in strengths:
-                st.write(f"✅ {strength}")
-        else:
-            st.write("No specific strengths identified.")
-            
-    with col2:
-        st.subheader("Areas for Improvement")
-        weaknesses = final_state.get("portfolio_weaknesses", [])
-        if weaknesses:
-            for weakness in weaknesses:
-                st.write(f"⚠️ {weakness}")
-        else:
-            st.write("No specific areas for improvement identified.")
-    
-    # Display allocation advice and risk assessment
-    st.subheader("Investment Strategy")
-    
-    allocation_advice = final_state.get("allocation_advice", "")
-    risk_assessment = final_state.get("risk_assessment", "")
-    
-    if allocation_advice:
-        st.write(f"**Allocation Advice:** {allocation_advice}")
-        
-    if risk_assessment:
-        st.write(f"**Risk Assessment:** {risk_assessment}")
         
     # Add a second generate button for new investment recommendations
     st.divider()
-    st.subheader("Discover New Investment Opportunities")
+    st.subheader("Next step: Discover new investment opportunities")
     st.write("Click the button below to discover new investment opportunities that would complement your portfolio.")
     
+
     if st.button("Generate New Investment Recommendations", key="new_inv_button"):
         # Create a placeholder for the progress bar
         new_inv_progress_placeholder = st.empty()
@@ -487,16 +881,19 @@ if generate_button or st.session_state.portfolio_analyzed:
         new_inv_status_placeholder.empty()
         
         # Display the new investment recommendations
-        st.subheader("New Investment Opportunities")
+        st.subheader("New investment opportunities")
         
         # Display the summary
         new_investment_summary = new_inv_final_state.get("new_investment_summary", "")
         if new_investment_summary:
             st.write(new_investment_summary)
+
+        print(new_inv_final_state.get("new_stock_analysis"))
         
         # Display the new investment recommendations
         new_investments = new_inv_final_state.get("new_investments", [])
         if new_investments:
+            print(new_investments)
             # Sort recommendations by priority (lower number = higher priority)
             sorted_investments = sorted(new_investments, key=lambda x: x.get("priority", 999) if isinstance(x, dict) else 999)
             
@@ -525,4 +922,4 @@ if generate_button or st.session_state.portfolio_analyzed:
             st.info("No new investment recommendations were generated. Please try again.")
 else:
     # Default display when app first loads
-    st.info("Enter your portfolio details and click 'Generate Recommendations' to receive personalized financial advice.")
+    st.info("Enter your portfolio details and click 'Generate Recommendations' to get personalized investing research, summary, and analysis.")

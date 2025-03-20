@@ -7,6 +7,8 @@ from .graph import setup_graph_with_tracking, setup_new_investments_graph
 from .rag_analyzer import rag_analyzer
 from .zacks_analyzer import zacks_analyzer
 from .new_investment_recommender import new_investment_recommender
+from .new_stock_analyzer import new_stock_analyzer
+from .portfolio_fit_evaluator import portfolio_fit_evaluator
 
 __all__ = [
     'AgentState',
@@ -20,5 +22,7 @@ __all__ = [
     'setup_new_investments_graph',
     'zacks_analyzer',
     'new_investment_recommender',
-    'calculate_rsi'
+    'calculate_rsi',
+    'new_stock_analyzer',
+    'portfolio_fit_evaluator'
 ] 

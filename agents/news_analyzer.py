@@ -42,6 +42,7 @@ def fetch_news(tickers, days=7):
                         'title': article['title'],
                         'summary': article['description'] or "No description available.",
                         'url': article['url'],
+                        'urlToImage': article['urlToImage'],
                         'published_at': article['publishedAt'],
                         'content': article.get('content', '')
                     })
@@ -53,6 +54,7 @@ def fetch_news(tickers, days=7):
                     'title': f"No recent news found for {ticker}",
                     'summary': "No relevant news articles were found for this ticker in the past week.",
                     'url': "",
+                    'urlToImage': "",
                     'published_at': today,
                     'content': ""
                 })
@@ -65,6 +67,7 @@ def fetch_news(tickers, days=7):
                 'title': f"Error fetching news for {ticker}",
                 'summary': f"Could not retrieve news due to an error: {str(e)}",
                 'url': "",
+                'urlToImage': "",
                 'published_at': today,
                 'content': ""
             })
@@ -101,6 +104,10 @@ def create_news_analyzer_chain():
                                 "type": "string",
                                 "description": "URL of the news article"
                             },
+                            "urlToImage": {
+                                "type": "string",
+                                "description": "URL of image from the news article"
+                            },
                             "published_at": {
                                 "type": "string",
                                 "description": "Publication date of the article"
@@ -126,7 +133,7 @@ def create_news_analyzer_chain():
                                 "description": "Broader market implications of this news"
                             }
                         },
-                        "required": ["ticker", "title", "summary", "sentiment", "impact_analysis", "url"]
+                        "required": ["ticker", "title", "summary", "sentiment", "impact_analysis", "url", "urlToImage"]
                     }
                 },
                 "overall_market_sentiment": {
@@ -212,6 +219,7 @@ def news_analyzer(state: AgentState) -> AgentState:
             news_articles_str += f"TITLE: {item['title']}\n"
             news_articles_str += f"SUMMARY: {item['summary']}\n"
             news_articles_str += f"URL: {item['url']}\n"
+            news_articles_str += f"URLTOIMAGE: {item['urlToImage']}\n"
             news_articles_str += f"PUBLISHED: {item['published_at']}\n"
             if item['content']:
                 news_articles_str += f"CONTENT: {item['content']}\n"
@@ -242,6 +250,7 @@ def news_analyzer(state: AgentState) -> AgentState:
                     "title": item["title"],
                     "summary": item["summary"],
                     "url": item["url"],
+                    "urlToImage": item["urlToImage"],
                     "published_at": item.get("published_at", ""),
                     "sentiment": "neutral",
                     "impact_analysis": "Could not analyze impact due to processing error.",

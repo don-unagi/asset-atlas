@@ -21,11 +21,20 @@ def get_zacks_rank(symbol, max_retries=3):
             break
     return None
 
-def find_rank_1_stocks(n=5, max_workers=60):
+def find_rank_1_stocks(n=10, max_workers=60):
     """Find n stocks with Zacks rank 1 from SP500."""
     try:
         # Get and shuffle SP500 symbols
-        symbols = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')[0]['Symbol'].tolist()
+        sp500_symbols = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')[0]['Symbol'].tolist()
+        
+        # Get SP400 (Mid Cap) symbols
+        sp400_symbols = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_400_companies')[0]['Symbol'].tolist()
+        
+        # Combine and shuffle all symbols
+        
+        symbols = sp500_symbols + sp400_symbols
+        # Get and shuffle SP500 symbols
+        #symbols = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')[0]['Symbol'].tolist()
         random.shuffle(symbols)
         
         rank_1_stocks = []
